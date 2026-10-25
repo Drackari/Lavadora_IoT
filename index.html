@@ -2,51 +2,109 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Control Whirlpool API</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0F172A">
+  <title>Whirlpool IoT Control</title>
+  
+  <!-- Configuración PWA para Android -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  
   <style>
-    body { font-family: sans-serif; background: #0f172a; color: white; text-align: center; padding: 20px; }
-    .card { max-width: 350px; margin: auto; background: #1e293b; padding: 20px; border-radius: 16px; }
-    input { width: 80%; padding: 10px; margin-bottom: 15px; border-radius: 8px; border: none; text-align: center; }
-    button { width: 100%; padding: 12px; margin: 8px 0; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-    .btn-start { background: #2563eb; color: white; }
-    .btn-stop { background: #dc2626; color: white; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    body { background: #0F172A; color: #F8FAFC; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+    .card { background: #1E293B; width: 100%; max-width: 380px; border-radius: 24px; padding: 24px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); border: 1px solid #334155; text-align: center; }
+    h1 { font-size: 20px; font-weight: 700; color: #38BDF8; margin-bottom: 4px; }
+    p.sub { font-size: 12px; color: #94A3B8; margin-bottom: 20px; }
+    input { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #334155; background: #0F172A; color: #38BDF8; text-align: center; font-size: 14px; font-weight: bold; margin-bottom: 20px; outline: none; }
+    .status-panel { background: #0F172A; border-radius: 16px; padding: 16px; margin-bottom: 20px; border: 1px solid #1E293B; text-align: left; }
+    .status-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .status-row:last-child { margin-bottom: 0; }
+    .label { font-size: 13px; color: #94A3B8; }
+    .value { font-size: 13px; font-weight: 600; color: #F8FAFC; }
+    .pill { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .pill-active { background: rgba(56, 189, 248, 0.15); color: #38BDF8; border: 1px solid rgba(56, 189, 248, 0.3); }
+    .pill-danger { background: rgba(239, 68, 68, 0.15); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .btn { display: flex; justify-content: center; align-items: center; width: 100%; height: 50px; border-radius: 12px; font-size: 15px; font-weight: 600; text-decoration: none; margin-bottom: 10px; border: none; cursor: pointer; transition: all 0.2s; }
+    .btn-start { background: #2563EB; color: white; }
+    .btn-stop { background: #DC2626; color: white; margin-bottom: 0; }
+    .btn:active { transform: scale(0.98); }
   </style>
 </head>
 <body>
 
 <div class="card">
-  <h2>Whirlpool IoT</h2>
-  <input type="text" id="espIp" value="http://192.168.1.4" placeholder="http://IP_DEL_ESP32">
-  
-  <p>Status: <b id="lblEstado">Desconectado</b></p>
-  <p>Presostato: <b id="lblPresostato">-</b></p>
+  <h1>WHIRLPOOL IoT</h1>
+  <p class="sub">Interfaz Remota REST API</p>
 
-  <button class="btn-start" onclick="enviar('iniciar')">INICIAR CICLO</button>
-  <button class="btn-stop" onclick="enviar('detener')">PARO DE EMERGENCIA</button>
+  <input type="text" id="espIp" value="http://192.168.1.4">
+
+  <div class="status-panel">
+    <div class="status-row">
+      <span class="label">Estado</span>
+      <span class="value" id="lblEstado">Conectando...</span>
+    </div>
+    <div class="status-row">
+      <span class="label">Presostato</span>
+      <span id="lblPresostato" class="pill pill-danger">Sin Lectura</span>
+    </div>
+  </div>
+
+  <button class="btn btn-start" onclick="enviarComando('iniciar')">INICIAR CICLO</button>
+  <button class="btn btn-stop" onclick="enviarComando('detener')">PARO DE EMERGENCIA</button>
 </div>
 
 <script>
-  async function actualizar() {
-    const ip = document.getElementById('espIp').value;
+  async function actualizarEstado() {
+    let ip = document.getElementById('espIp').value.trim();
+    if (!ip.startsWith('http://') && !ip.startsWith('https://')) {
+      ip = 'http://' + ip;
+    }
+    
     try {
-      const res = await fetch(`${ip}/api/estado`);
-      const data = await res.json();
-      document.getElementById('lblEstado').innerText = data.estado;
-      document.getElementById('lblPresostato').innerText = data.presostato ? "LLENO" : "VACÍO";
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      
+      const res = await fetch(`${ip}/api/estado`, { 
+        signal: controller.signal,
+        mode: 'cors'
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        document.getElementById('lblEstado').innerText = data.estado;
+        
+        const lblPres = document.getElementById('lblPresostato');
+        if (data.presostato) {
+          lblPres.innerText = "TINA LLENA";
+          lblPres.className = "pill pill-active";
+        } else {
+          lblPres.innerText = "VACÍO";
+          lblPres.className = "pill pill-danger";
+        }
+      }
     } catch(e) {
       document.getElementById('lblEstado').innerText = "Sin respuesta del ESP32";
     }
   }
 
-  async function enviar(comando) {
-    const ip = document.getElementById('espIp').value;
-    await fetch(`${ip}/api/${comando}`);
-    actualizar();
+  async function enviarComando(cmd) {
+    let ip = document.getElementById('espIp').value.trim();
+    if (!ip.startsWith('http://') && !ip.startsWith('https://')) {
+      ip = 'http://' + ip;
+    }
+    try {
+      await fetch(`${ip}/api/${cmd}`, { mode: 'cors' });
+      actualizarEstado();
+    } catch(e) {
+      alert("Error al enviar orden al ESP32");
+    }
   }
 
-  // Actualiza el estado cada 2 segundos
-  setInterval(actualizar, 2000);
+  setInterval(actualizarEstado, 2000);
+  actualizarEstado();
 </script>
 
 </body>
