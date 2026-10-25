@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control Whirlpool API</title>
+  <style>
+    body { font-family: sans-serif; background: #0f172a; color: white; text-align: center; padding: 20px; }
+    .card { max-width: 350px; margin: auto; background: #1e293b; padding: 20px; border-radius: 16px; }
+    input { width: 80%; padding: 10px; margin-bottom: 15px; border-radius: 8px; border: none; text-align: center; }
+    button { width: 100%; padding: 12px; margin: 8px 0; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    .btn-start { background: #2563eb; color: white; }
+    .btn-stop { background: #dc2626; color: white; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2>Whirlpool IoT</h2>
+  <input type="text" id="espIp" value="http://192.168.1.85" placeholder="http://IP_DEL_ESP32">
+  
+  <p>Status: <b id="lblEstado">Desconectado</b></p>
+  <p>Presostato: <b id="lblPresostato">-</b></p>
+
+  <button class="btn-start" onclick="enviar('iniciar')">INICIAR CICLO</button>
+  <button class="btn-stop" onclick="enviar('detener')">PARO DE EMERGENCIA</button>
+</div>
+
+<script>
+  async function actualizar() {
+    const ip = document.getElementById('espIp').value;
+    try {
+      const res = await fetch(`${ip}/api/estado`);
+      const data = await res.json();
+      document.getElementById('lblEstado').innerText = data.estado;
+      document.getElementById('lblPresostato').innerText = data.presostato ? "LLENO" : "VACÍO";
+    } catch(e) {
+      document.getElementById('lblEstado').innerText = "Sin respuesta del ESP32";
+    }
+  }
+
+  async function enviar(comando) {
+    const ip = document.getElementById('espIp').value;
+    await fetch(`${ip}/api/${comando}`);
+    actualizar();
+  }
+
+  // Actualiza el estado cada 2 segundos
+  setInterval(actualizar, 2000);
+</script>
+
+</body>
+</html>
